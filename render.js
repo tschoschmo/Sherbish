@@ -30,6 +30,57 @@
 
   function fmt(n) { return Math.round(n * 1000) / 1000; }
 
+  // --- Glyph size normalization -------------------------------------------
+  // Glyphs are drawn freehand in a 0..100 box and vary a lot in how much of it
+  // they fill (some bulge well past the nominal [14,86] band via wild control
+  // points). To keep the script even, every glyph is bounded by the footprint
+  // of AY (the reference "perfectly sized" glyph): anything larger is scaled
+  // down to fit and re-centered. Glyphs already within the box are left alone,
+  // so AY and the other well-sized glyphs render exactly as drawn.
+  var STROKE_PAD = 3;            // half the 6px stroke, so the box bounds ink not centerlines
+  var _measSvg = null;
+  var _targetBox = null;
+
+  function measureBBox(body) {
+    if (typeof document === 'undefined' || !document.body) return null;
+    if (!_measSvg) {
+      _measSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      _measSvg.setAttribute('viewBox', '0 0 100 100');
+      _measSvg.style.cssText = 'position:absolute;left:-9999px;top:-9999px;width:100px;height:100px;visibility:hidden';
+      document.body.appendChild(_measSvg);
+    }
+    _measSvg.innerHTML = body;
+    var bb = null;
+    try { bb = _measSvg.getBBox(); } catch (e) { bb = null; }
+    _measSvg.innerHTML = '';
+    if (!bb || (!bb.width && !bb.height)) return null;
+    return { x: bb.x - STROKE_PAD, y: bb.y - STROKE_PAD, width: bb.width + 2 * STROKE_PAD, height: bb.height + 2 * STROKE_PAD };
+  }
+
+  function targetBox() {
+    if (_targetBox) return _targetBox;
+    var ay = window.GLYPHS && window.GLYPHS.AY;
+    var bb = ay ? measureBBox(ay.body) : null;
+    _targetBox = bb ? { w: bb.width, h: bb.height } : { w: 54, h: 62 };  // fallback ~ AY footprint
+    return _targetBox;
+  }
+
+  // The glyph's drawable markup, shrunk + centered if it overflows AY's box.
+  function normalizedBody(token) {
+    var g = window.GLYPHS[token];
+    if (!g) return '';
+    if (g._norm != null) return g._norm;
+    var bb = measureBBox(g.body);
+    if (!bb) { g._norm = g.body; return g._norm; }
+    var t = targetBox();
+    var s = Math.min(1, t.w / bb.width, t.h / bb.height);
+    if (s >= 0.999) { g._norm = g.body; return g._norm; }  // already fits — leave as drawn
+    var cx = bb.x + bb.width / 2, cy = bb.y + bb.height / 2;
+    var tx = 50 - s * cx, ty = 50 - s * cy;                // scale toward, then recenter on, (50,50)
+    g._norm = '<g transform="translate(' + fmt(tx) + ',' + fmt(ty) + ') scale(' + fmt(s) + ')">' + g.body + '</g>';
+    return g._norm;
+  }
+
   function blockDims(n) {
     // Every block is two cells tall; a lone glyph stretches to fill it.
     if (n <= 1) return { cols: 1, rows: 2 };
@@ -69,16 +120,20 @@
     var innerW = cellW - 2 * PAD;
     var innerY = cellY + PAD;
     var innerH = cellH - 2 * PAD;
+    // high/low glyphs (T, Y, L, UL, COMMA...) hug the top/bottom of the cell but
+    // shouldn't be jammed against the edge: give them a generous band so they read
+    // as anchored high/low while staying close to the others in size.
+    var BAND = 0.7;
     var bandY = innerY, bandH = innerH;
-    if (g.height === 'high') { bandH = innerH * 0.5; }
-    else if (g.height === 'low') { bandY = innerY + innerH * 0.5; bandH = innerH * 0.5; }
+    if (g.height === 'high') { bandH = innerH * BAND; }
+    else if (g.height === 'low') { bandY = innerY + innerH * (1 - BAND); bandH = innerH * BAND; }
     else if (g.height === 'mid') { bandY = innerY + innerH * 0.30; bandH = innerH * 0.40; }
     var span = 100 - 2 * DRAW_MARGIN;
     var sx = innerW / span, sy = bandH / span;
     var tx = innerX - DRAW_MARGIN * sx;
     var ty = bandY - DRAW_MARGIN * sy;
     return '<g transform="translate(' + fmt(tx) + ',' + fmt(ty) +
-      ') scale(' + fmt(sx) + ',' + fmt(sy) + ')">' + g.body + '</g>';
+      ') scale(' + fmt(sx) + ',' + fmt(sy) + ')">' + normalizedBody(token) + '</g>';
   }
 
   function renderSyllable(tokens, x, y, guides) {
