@@ -1,128 +1,116 @@
 /*
- * Plain English -> Sherbish document items.
+ * Plain English -> Sherbish document items (accent-agnostic).
  *
- * englishToItems(text) returns the same item shape render.js / the breakdown
- * already understand:
+ * englishToItems(text, profile) returns the same item shape render.js / the
+ * breakdown understand:
  *   { type:'word', raw, tokens:[...], syllables:[[tok,...],...], source, note }
  *   { type:'punct', glyph }   { type:'space' }   { type:'error', raw, message }
  *
- * Pronunciation comes from CMUdict (window.cmudictLookup). When a word isn't in
- * the dictionary we try light morphological backoffs (contractions,
- * possessives, plural/past/gerund) and flag the result as a guess. Anything we
- * still can't pronounce becomes an error box, so unknown words are visible
- * rather than silently wrong.
+ * profile = { name, lookup(word)->[[phones..]..]|null, toTokens(phones)->[tok..]|null }
+ * comes from accents.js (General American / RP). All accent-specific knowledge
+ * lives in the profile; everything here works in Sherbish-token space.
  *
- * Syllabification reuses window.syllabifySegment from ../transliterate.js.
+ * Words not in the dictionary get light morphological backoffs (contractions,
+ * possessives, plural/past/gerund) done at the token level, flagged as guesses;
+ * anything still unresolved becomes a visible error box. Syllabification reuses
+ * window.syllabifySegment from transliterate.js.
  */
 (function () {
-  var VOICELESS = { P:1, T:1, K:1, F:1, TH:1, S:1, SH:1, CH:1, HH:1 };
-  var SIBILANT = { S:1, Z:1, SH:1, ZH:1, CH:1, JH:1 };
+  // Token-level voicing classes (Sherbish tokens, so accent-independent).
+  var VOICELESS = { P: 1, T: 1, K: 1, F: 1, TH: 1, S: 1, SH: 1, C: 1, HH: 1 };
+  var SIBILANT = { S: 1, Z: 1, SH: 1, ZH: 1, C: 1, J: 1 };
 
-  function bare(phone) { return String(phone).replace(/[0-2]$/, '').toUpperCase(); }
-  function lastPhone(phones) { return phones.length ? bare(phones[phones.length - 1]) : ''; }
-
-  // ARPABET phones for a regular "-s" ending, given the base's final phone.
-  function sEnding(last) {
-    if (SIBILANT[last]) return ['IH0', 'Z'];
+  function sEnd(last) {
+    if (SIBILANT[last]) return ['IH', 'Z'];
     return VOICELESS[last] ? ['S'] : ['Z'];
   }
-  // ARPABET phones for a regular "-ed" ending.
-  function edEnding(last) {
-    if (last === 'T' || last === 'D') return ['IH0', 'D'];
+  function edEnd(last) {
+    if (last === 'T' || last === 'D') return ['IH', 'D'];
     return VOICELESS[last] ? ['T'] : ['D'];
   }
 
+  // Contraction suffix -> appended tokens. "'s" is voicing-dependent (null).
+  // "'re" reduces to a schwa (UH) — fine for both rhotic and non-rhotic here.
   var CONTRACTIONS = {
-    "'s": null,            // handled via voicing (possessive / is / has)
-    "'re": ['ER0'],
-    "'ve": ['V'],
-    "'ll": ['L'],
-    "'d": ['D'],
-    "'m": ['M'],
-    "n't": ['N', 'T']
+    "'s": null, "'re": ['UH'], "'ve": ['V'], "'ll": ['L'],
+    "'d": ['D'], "'m": ['M'], "n't": ['N', 'T']
   };
 
-  // word: already lowercased, letters + apostrophes only.
-  // returns { phones:[...], source:'dict'|'guess' } | null
-  function pronounce(word) {
-    var lookup = window.cmudictLookup;
-    var prons = lookup(word);
-    if (prons) return { phones: prons[0], source: 'dict' };
+  // Look a word up and convert straight to tokens, or null if missing/unmappable.
+  function stemTokens(word, profile) {
+    var prons = profile.lookup(word);
+    if (!prons) return null;
+    return profile.toTokens(prons[0]);
+  }
 
-    // Contraction / possessive backoff: split at the last apostrophe.
+  // -> { tokens:[...]|null, source:'dict'|'guess' } | null
+  //    tokens === null means "found but had an unsupported phoneme".
+  function pronounce(word, profile) {
+    var prons = profile.lookup(word);
+    if (prons) return { tokens: profile.toTokens(prons[0]), source: 'dict' };
+
+    // Contraction / possessive: split at the last apostrophe.
     var ap = word.lastIndexOf("'");
     if (ap > 0) {
-      var stem = word.slice(0, ap);
-      var suffix = word.slice(ap);                 // e.g. "'s", "'ll"
-      var stemProns = lookup(stem);
-      // "n't" lives across the boundary (do n't), so also try the n't form.
-      if (!stemProns && /n't$/.test(word)) {
-        stem = word.slice(0, word.length - 3);
-        suffix = "n't";
-        stemProns = lookup(stem);
-      }
-      if (stemProns && (suffix in CONTRACTIONS)) {
-        var base = stemProns[0].slice();
+      var stem = word.slice(0, ap), suffix = word.slice(ap);
+      var st = stemTokens(stem, profile);
+      if (!st && /n't$/.test(word)) { stem = word.slice(0, -3); suffix = "n't"; st = stemTokens(stem, profile); }
+      if (st && (suffix in CONTRACTIONS)) {
         var add = CONTRACTIONS[suffix];
-        if (add === null) add = sEnding(lastPhone(base)); // possessive 's
-        return { phones: base.concat(add), source: 'guess' };
+        if (add === null) add = sEnd(st[st.length - 1]);
+        return { tokens: st.concat(add), source: 'guess' };
       }
     }
 
-    // Inflectional backoff on a plain word.
+    // Inflectional backoff.
     if (/[a-z]/.test(word)) {
-      // -ing  (running -> run + ing)
       if (/ing$/.test(word)) {
-        var s1 = word.slice(0, -3);
-        var p1 = lookup(s1) || lookup(s1 + 'e');
-        if (p1) return { phones: p1[0].concat(['IH0', 'NG']), source: 'guess' };
+        var a = word.slice(0, -3);
+        var ta = stemTokens(a, profile) || stemTokens(a + 'e', profile);
+        if (ta) return { tokens: ta.concat(['IH', 'NG']), source: 'guess' };
       }
-      // -ed   (walked -> walk + ed)
       if (/ed$/.test(word)) {
-        var s2 = word.slice(0, -2);
-        var p2 = lookup(s2) || lookup(s2 + 'e') || lookup(word.slice(0, -1));
-        if (p2) return { phones: p2[0].concat(edEnding(lastPhone(p2[0]))), source: 'guess' };
+        var b = word.slice(0, -2);
+        var tb = stemTokens(b, profile) || stemTokens(b + 'e', profile) || stemTokens(word.slice(0, -1), profile);
+        if (tb) return { tokens: tb.concat(edEnd(tb[tb.length - 1])), source: 'guess' };
       }
-      // -es / -s  (boxes -> box, cats -> cat)
       if (/es$/.test(word)) {
-        var s3 = word.slice(0, -2);
-        var p3 = lookup(s3) || lookup(word.slice(0, -1));
-        if (p3) return { phones: p3[0].concat(sEnding(lastPhone(p3[0]))), source: 'guess' };
+        var c = word.slice(0, -2);
+        var tc = stemTokens(c, profile) || stemTokens(word.slice(0, -1), profile);
+        if (tc) return { tokens: tc.concat(sEnd(tc[tc.length - 1])), source: 'guess' };
       }
       if (/s$/.test(word)) {
-        var s4 = word.slice(0, -1);
-        var p4 = lookup(s4);
-        if (p4) return { phones: p4[0].concat(sEnding(lastPhone(p4[0]))), source: 'guess' };
+        var d = word.slice(0, -1);
+        var td = stemTokens(d, profile);
+        if (td) return { tokens: td.concat(sEnd(td[td.length - 1])), source: 'guess' };
       }
     }
     return null;
   }
 
-  function makeWord(raw) {
+  function makeWord(raw, profile) {
     var word = raw.toLowerCase();
-    var p = pronounce(word);
+    var p = pronounce(word, profile);
     if (!p) {
-      return { type: 'error', raw: raw, message: '"' + raw + '" is not in the pronunciation dictionary.' };
+      return { type: 'error', raw: raw, message: '"' + raw + '" is not in the ' + profile.name + ' dictionary.' };
     }
-    var tokens = window.arpaPhonesToTokens(p.phones);
-    if (tokens === null) {
+    if (!p.tokens) {
       return { type: 'error', raw: raw, message: 'Unsupported phoneme in "' + raw + '".' };
     }
-    var syllables = window.syllabifySegment(tokens);
     return {
-      type: 'word', raw: raw, tokens: tokens, syllables: syllables,
-      source: p.source,
-      note: p.source === 'guess' ? 'guessed from word shape' : ''
+      type: 'word', raw: raw, tokens: p.tokens,
+      syllables: window.syllabifySegment(p.tokens),
+      source: p.source, note: p.source === 'guess' ? 'guessed from word shape' : ''
     };
   }
 
   // Mirrors parseLatin's punctuation/whitespace handling; words are English.
-  function englishToItems(text) {
+  function englishToItems(text, profile) {
     var items = [];
     var buf = '';
     var i = 0, n = text.length;
 
-    function flush() { if (buf) { items.push(makeWord(buf)); buf = ''; } }
+    function flush() { if (buf) { items.push(makeWord(buf, profile)); buf = ''; } }
     function lastType() { return items.length ? items[items.length - 1].type : null; }
 
     while (i < n) {
@@ -142,13 +130,12 @@
       if (c === '?') { items.push({ type: 'punct', glyph: 'QUESTION' }); i++; continue; }
       if (c === '!') { items.push({ type: 'punct', glyph: 'EXCLAM' }); i++; continue; }
       if (c === ',') { items.push({ type: 'punct', glyph: 'COMMA' }); i++; continue; }
-      i++; // ignore anything else
+      i++;
     }
     flush();
     if (items.length && lastType() === 'space') items.pop();
     return items;
   }
 
-  window.pronounceEnglish = pronounce;
   window.englishToItems = englishToItems;
 })();

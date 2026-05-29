@@ -15,8 +15,12 @@
   var taglineEl = document.getElementById('tagline');
   var tokensPanelEl = document.getElementById('tokens-panel');
   var tokensEl = document.getElementById('tokens');
+  var accentEl = document.getElementById('accent');
+  var accentGroupEl = document.getElementById('accent-group');
 
-  var mode = 'latin';   // 'latin' | 'english'
+  var mode = 'latin';      // 'latin' | 'english'
+  var accentId = 'genam';  // 'genam' | 'rp'
+  var lookups = {};        // dictUrl -> resolved lookup(word)
   var lastSvg = '';
 
   var LATIN = {
@@ -34,7 +38,7 @@
   };
   var ENGLISH = {
     label: 'Plain English',
-    tagline: 'Type <strong>plain English</strong>. Words are looked up in the CMU pronouncing dictionary, mapped to Sherbish phonemes, then drawn. Words guessed from their shape are flagged; unknown words show as red boxes.',
+    tagline: 'Type <strong>plain English</strong>. Words are looked up in a pronouncing dictionary for the selected accent, mapped to Sherbish phonemes, then drawn. Words guessed from their shape are flagged; unknown words show as red boxes.',
     placeholder: 'Hello, world',
     defaultText: 'Hello. Turtles have shells. To be, or not to be, that is the question?',
     examples: [
@@ -135,16 +139,21 @@
   function update() {
     if (!window.GLYPHS) return;
     if (mode === 'english') {
-      if (!window.cmudictLookup) {
-        hintEl.textContent = 'Loading pronunciation dictionary…';
+      var acc = window.ACCENTS[accentId];
+      var lk = lookups[acc.dictUrl];
+      if (!lk) {
+        hintEl.textContent = 'Loading the ' + acc.name + ' pronunciation dictionary…';
         hintEl.className = 'hint';
-        window.loadDictionary().then(update).catch(function (err) {
+        window.loadDict(acc.dictUrl, acc.parse).then(function (lookup) {
+          lookups[acc.dictUrl] = lookup;
+          update();
+        }).catch(function (err) {
           hintEl.textContent = 'Could not load the dictionary: ' + String(err && err.message || err);
           hintEl.className = 'hint warn';
         });
         return;
       }
-      draw(window.englishToItems(inputEl.value));
+      draw(window.englishToItems(inputEl.value, { name: acc.name, lookup: lk, toTokens: acc.toTokens }));
     } else {
       draw(window.parseLatin(inputEl.value));
     }
@@ -183,6 +192,7 @@
     taglineEl.innerHTML = c.tagline;
     inputEl.placeholder = c.placeholder;
     tokensPanelEl.hidden = (mode !== 'english');
+    accentGroupEl.hidden = (mode !== 'english');
     Array.prototype.forEach.call(modesEl.children, function (btn) {
       btn.classList.toggle('active', btn.getAttribute('data-mode') === mode);
     });
@@ -208,6 +218,11 @@
     a.href = url; a.download = 'sherbish.svg';
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  });
+
+  accentEl.addEventListener('change', function () {
+    accentId = accentEl.value;
+    update();
   });
 
   inputEl.addEventListener('input', update);
