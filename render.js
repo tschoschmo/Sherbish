@@ -120,9 +120,13 @@
     var innerW = cellW - 2 * PAD;
     var innerY = cellY + PAD;
     var innerH = cellH - 2 * PAD;
+    // high/low glyphs (T, Y, L, UL, COMMA...) hug the top/bottom of the cell but
+    // shouldn't be jammed against the edge: give them a generous band so they read
+    // as anchored high/low while staying close to the others in size.
+    var BAND = 0.7;
     var bandY = innerY, bandH = innerH;
-    if (g.height === 'high') { bandH = innerH * 0.5; }
-    else if (g.height === 'low') { bandY = innerY + innerH * 0.5; bandH = innerH * 0.5; }
+    if (g.height === 'high') { bandH = innerH * BAND; }
+    else if (g.height === 'low') { bandY = innerY + innerH * (1 - BAND); bandH = innerH * BAND; }
     else if (g.height === 'mid') { bandY = innerY + innerH * 0.30; bandH = innerH * 0.40; }
     var span = 100 - 2 * DRAW_MARGIN;
     var sx = innerW / span, sy = bandH / span;
