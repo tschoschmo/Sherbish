@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
   <style>path,line,circle,ellipse,polygon,polyline,rect{fill:none;stroke:#15171a;stroke-width:6;stroke-linecap:round;stroke-linejoin:round}.fill{fill:#15171a;stroke:none}</style>
-  <line x1="14" y1="30" x2="86" y2="30"/><line x1="14" y1="70" x2="86" y2="70"/>
+  <line x1="14" y1="15" x2="86" y2="15"/><line x1="14" y1="85" x2="86" y2="85"/>
 </svg>
 

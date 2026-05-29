@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
   <style>path,line,circle,ellipse,polygon,polyline,rect{fill:none;stroke:#15171a;stroke-width:6;stroke-linecap:round;stroke-linejoin:round}.fill{fill:#15171a;stroke:none}</style>
-  <path d="M64,18 C30,30 30,70 64,82"/>
+  <path d="M 85 85 C -10 85 -10 15 85 15"/>
 </svg>
 
