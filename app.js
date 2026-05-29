@@ -17,8 +17,9 @@
   var tokensEl = document.getElementById('tokens');
   var accentEl = document.getElementById('accent');
   var accentGroupEl = document.getElementById('accent-group');
+  var chartHeadingEl = document.getElementById('chart-heading');
 
-  var mode = 'latin';      // 'latin' | 'english'
+  var mode = 'english';    // 'latin' | 'english'
   var accentId = 'genam';  // 'genam' | 'rp'
   var lookups = {};        // dictUrl -> resolved lookup(word)
   var lastSvg = '';
@@ -40,13 +41,11 @@
     label: 'Plain English',
     tagline: 'Type <strong>plain English</strong>. Words are looked up in a pronouncing dictionary for the selected accent, mapped to Sherbish phonemes, then drawn. Words guessed from their shape are flagged; unknown words show as red boxes.',
     placeholder: 'Hello, world',
-    defaultText: 'Hello. Turtles have shells. To be, or not to be, that is the question?',
+    defaultText: 'Hello, world.',
     examples: [
-      { label: 'Hello.', text: 'Hello.' },
-      { label: 'Turtles have shells.', text: 'Turtles have shells.' },
-      { label: 'To be, or not to be…', text: 'To be, or not to be, that is the question?' },
+      { label: 'Hello, world.', text: 'Hello, world.' },
+      { label: 'To be, or not to be…', text: 'To be, or not to be, that is the question.' },
       { label: 'What are you doing tonight?', text: 'What are you doing tonight?' },
-      { label: 'Four score and seven years ago…', text: 'Four score and seven years ago.' }
     ]
   };
   function cfg() { return mode === 'english' ? ENGLISH : LATIN; }
@@ -160,15 +159,22 @@
   }
 
   function buildChart() {
+    // In English mode the chart reflects the selected accent's phonemes;
+    // otherwise it shows the glyph's default (General American) IPA.
+    var acc = (mode === 'english') ? window.ACCENTS[accentId] : null;
+    var tokenIpa = acc && acc.tokenIpa;
+    chartHeadingEl.textContent = acc ? 'Glyph reference (' + acc.name + ')' : 'Glyph reference';
+
     var html = '';
     window.CHART_GROUPS.forEach(function (grp) {
       html += '<h3>' + esc(grp.title) + '</h3><div class="chart-grid">';
       grp.tokens.forEach(function (tk) {
         var g = window.GLYPHS[tk];
         if (!g) return;
+        var ipa = (tokenIpa && tokenIpa[tk]) || g.ipa;
         html += '<div class="tile-card">' + window.renderGlyphTile(tk) +
           '<div class="tile-label">' + esc(g.label) + '</div>' +
-          (g.ipa ? '<div class="tile-ipa">/' + esc(g.ipa) + '/</div>' : '') +
+          (ipa ? '<div class="tile-ipa">/' + esc(ipa) + '/</div>' : '') +
           '<div class="tile-sound">' + esc(g.sound) + '</div></div>';
       });
       html += '</div>';
@@ -197,6 +203,7 @@
       btn.classList.toggle('active', btn.getAttribute('data-mode') === mode);
     });
     buildExamples();
+    buildChart();
   }
 
   modesEl.addEventListener('click', function (e) {
@@ -222,6 +229,7 @@
 
   accentEl.addEventListener('change', function () {
     accentId = accentEl.value;
+    buildChart();
     update();
   });
 
@@ -230,7 +238,7 @@
   ipaEl.addEventListener('change', update);
   sizeEl.addEventListener('input', applySize);
 
-  inputEl.value = LATIN.defaultText;
+  inputEl.value = cfg().defaultText;
   window.glyphsReady.then(function () {
     applyMode();
     buildChart();

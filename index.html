@@ -135,8 +135,8 @@
 <main>
   <div class="panel">
     <div class="modes" id="modes">
-      <button data-mode="latin" class="active">Latin encoding</button>
-      <button data-mode="english">Plain English</button>
+      <button data-mode="english" class="active">Plain English</button>
+      <button data-mode="latin">Latin encoding</button>
     </div>
     <label class="field" for="input" id="input-label">Latin encoding</label>
     <textarea id="input" spellcheck="false"></textarea>
@@ -145,7 +145,7 @@
       <div class="group" id="accent-group" hidden><label for="accent">accent</label><select id="accent"><option value="genam">General American</option><option value="rp">Received Pronunciation</option></select></div>
       <div class="group"><label for="size">size</label><input id="size" type="range" min="28" max="90" value="54" /></div>
       <div class="group"><label><input id="guides" type="checkbox" /> show grid</label></div>
-      <div class="group"><label><input id="ipa" type="checkbox" checked /> show IPA</label></div>
+      <div class="group"><label><input id="ipa" type="checkbox" /> show IPA</label></div>
     </div>
     <div class="examples" id="examples"></div>
   </div>
@@ -162,7 +162,7 @@
     <div id="breakdown"></div>
   </div>
 
-  <h2 class="section">Glyph reference</h2>
+  <h2 class="section" id="chart-heading">Glyph reference</h2>
   <div class="panel chart" id="chart"></div>
 </main>
 

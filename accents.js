@@ -56,6 +56,23 @@
     'm': ['M'], 'n': ['N'], 'ŋ': ['NG'], 'l': ['L'], 'ɹ': ['R'], 'w': ['W'], 'j': ['Y']
   };
 
+  // Reverse a phoneme->tokens map into token->"ipa, ipa" for the glyph chart.
+  // Only single-token mappings are meaningful per glyph; multi-token combos
+  // (the centring diphthongs) aren't a single glyph, so skip them.
+  function buildTokenIpa(map) {
+    var rev = {};
+    Object.keys(map).forEach(function (ipa) {
+      var toks = map[ipa];
+      if (toks.length !== 1) return;
+      var t = toks[0];
+      if (!rev[t]) rev[t] = [];
+      if (rev[t].indexOf(ipa) === -1) rev[t].push(ipa);
+    });
+    var out = {};
+    Object.keys(rev).forEach(function (t) { out[t] = rev[t].join(', '); });
+    return out;
+  }
+
   function stripStressIpa(p) { return p.replace(/[ˈˌ]/g, ''); } // ˈ ˌ
 
   function britfoneToTokens(phones) {
@@ -89,11 +106,13 @@
   window.ACCENTS = {
     genam: {
       id: 'genam', name: 'General American', dictUrl: 'cmudict.dict',
-      parse: parseCmudict, toTokens: window.arpaPhonesToTokens
+      parse: parseCmudict, toTokens: window.arpaPhonesToTokens,
+      tokenIpa: null   // glyph.ipa is already the General American value
     },
     rp: {
       id: 'rp', name: 'Received Pronunciation', dictUrl: 'britfone.csv',
-      parse: parseBritfone, toTokens: britfoneToTokens
+      parse: parseBritfone, toTokens: britfoneToTokens,
+      tokenIpa: buildTokenIpa(RP_TO_TOKENS)
     }
   };
 })();

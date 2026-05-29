@@ -88,6 +88,19 @@
     return null;
   }
 
+  // Merge adjacent consonant clusters onto their ligature glyphs:
+  // /ks/ -> KS (the "x" glyph), /kw/ -> KW (the "q" glyph).
+  function combineClusters(tokens) {
+    var out = [];
+    for (var i = 0; i < tokens.length; i++) {
+      var t = tokens[i], n = tokens[i + 1];
+      if (t === 'K' && n === 'S') { out.push('KS'); i++; }
+      else if (t === 'K' && n === 'W') { out.push('KW'); i++; }
+      else out.push(t);
+    }
+    return out;
+  }
+
   function makeWord(raw, profile) {
     var word = raw.toLowerCase();
     var p = pronounce(word, profile);
@@ -97,9 +110,10 @@
     if (!p.tokens) {
       return { type: 'error', raw: raw, message: 'Unsupported phoneme in "' + raw + '".' };
     }
+    var tokens = combineClusters(p.tokens);
     return {
-      type: 'word', raw: raw, tokens: p.tokens,
-      syllables: window.syllabifySegment(p.tokens),
+      type: 'word', raw: raw, tokens: tokens,
+      syllables: window.syllabifySegment(tokens),
       source: p.source, note: p.source === 'guess' ? 'guessed from word shape' : ''
     };
   }
