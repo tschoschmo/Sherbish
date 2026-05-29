@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <style>path,line,circle,ellipse,polygon,polyline,rect{fill:none;stroke:#15171a;stroke-width:6;stroke-linecap:round;stroke-linejoin:round}.fill{fill:#15171a;stroke:none}</style>
+  <line x1="60" y1="14" x2="60" y2="86"/><path d="M60,40 C28,36 28,58 60,56"/><path d="M60,56 C26,54 26,86 60,82"/>
+</svg>
+

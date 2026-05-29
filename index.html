@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sherbish transliterator</title>
+<style>
+  :root {
+    --ink: #15171a;
+    --muted: #6b7280;
+    --line: #e6e9ee;
+    --bg: #f7f8fa;
+    --card: #ffffff;
+    --accent: #3b6fff;
+    --err: #b02525;
+    --guess: #b07a16;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 15px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+  }
+  header {
+    padding: 22px 28px 14px;
+    border-bottom: 1px solid var(--line);
+    background: var(--card);
+  }
+  header h1 { margin: 0; font-size: 20px; letter-spacing: .2px; }
+  header p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+  main { max-width: 1040px; margin: 0 auto; padding: 22px 28px 60px; }
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 18px;
+  }
+  label.field { display: block; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 6px; }
+  textarea {
+    width: 100%;
+    min-height: 78px;
+    resize: vertical;
+    font: 16px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--ink);
+    background: #fcfcfd;
+  }
+  textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
+  .controls { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; margin-top: 12px; }
+  .controls .group { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+  .controls input[type=range] { width: 130px; }
+  button {
+    font: 600 13px system-ui, sans-serif;
+    padding: 7px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  button:hover { border-color: #c7ccd4; }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .examples { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .examples button { font-weight: 500; color: var(--muted); }
+
+  .modes { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin-bottom: 14px; }
+  .modes button { border: 0; border-radius: 0; padding: 8px 16px; color: var(--muted); }
+  .modes button + button { border-left: 1px solid var(--line); }
+  .modes button.active { background: var(--accent); color: #fff; }
+
+  .tokens-out { margin-top: 12px; font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: #f1f4f9; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; word-break: break-word; }
+  .tokens-out .lbl { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .4px; display: block; margin-bottom: 4px; }
+
+  #output {
+    overflow-x: auto;
+    padding: 18px;
+    background:
+      linear-gradient(#fff, #fff) padding-box,
+      repeating-linear-gradient(45deg, #fafbfc, #fafbfc 10px, #fff 10px, #fff 20px);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    min-height: 140px;
+    display: flex;
+    align-items: center;
+  }
+  #output svg { max-width: none; }
+
+  .sherb path, .sherb line, .sherb circle, .sherb ellipse, .sherb polygon, .sherb polyline {
+    fill: none; stroke: var(--ink); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+  }
+  .sherb .fill { fill: var(--ink); stroke: none; }
+  .sherb .guide-cell { fill: none; stroke: #eef1f5; stroke-width: 1.5; }
+  .sherb .guide-block { fill: rgba(59,111,255,.05); stroke: #cddcff; stroke-width: 2; }
+  .sherb .err-box { fill: rgba(176,37,37,.07); stroke: var(--err); stroke-width: 3; stroke-dasharray: 9 6; }
+  .sherb .err-text { fill: var(--err); stroke: none; font: 700 26px ui-monospace, monospace; text-anchor: middle; dominant-baseline: middle; }
+  .sherb .ipa { fill: var(--muted); stroke: none; font: 400 30px "Segoe UI", "Charis SIL", "Doulos SIL", "Gentium Plus", system-ui, sans-serif; }
+  .sherb.tile .tile-box { fill: none; stroke: var(--line); stroke-width: 2; }
+
+  #breakdown { display: flex; flex-wrap: wrap; gap: 8px; font-family: ui-monospace, monospace; font-size: 13px; }
+  .bd-word { background: #f1f4f9; border-radius: 6px; padding: 5px 9px; }
+  .bd-word.guess { background: rgba(176,122,22,.10); }
+  .bd-word .bd-raw { color: var(--muted); margin-right: 8px; }
+  .bd-word .bd-syl { color: var(--ink); }
+  .bd-word .bd-flag { color: var(--guess); margin-left: 8px; font-style: italic; }
+  .bd-err { background: rgba(176,37,37,.08); color: var(--err); border-radius: 6px; padding: 5px 9px; }
+  .bd-err .bd-raw { font-weight: 700; margin-right: 8px; }
+  .bd-sep, .bd-punct { color: var(--muted); padding: 5px 4px; align-self: center; }
+  .bd-word .bd-ipa { color: var(--accent); margin-left: 8px; }
+
+  h2.section { font-size: 15px; margin: 26px 0 10px; }
+  details > summary { cursor: pointer; font-weight: 600; }
+  .chart h3 { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; margin: 18px 0 8px; }
+  .chart-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; }
+  .tile-card { border: 1px solid var(--line); border-radius: 10px; padding: 8px; text-align: center; background: #fff; }
+  .tile-card svg.tile { width: 100%; height: auto; aspect-ratio: 1 / 1; }
+  .tile-label { font: 700 12px ui-monospace, monospace; margin-top: 4px; }
+  .tile-ipa { font: 600 12px "Segoe UI", "Charis SIL", "Doulos SIL", system-ui, sans-serif; color: var(--accent); margin-top: 1px; }
+  .tile-sound { font-size: 10.5px; color: var(--muted); line-height: 1.25; margin-top: 2px; }
+  .hint { color: var(--muted); font-size: 12.5px; margin: 8px 0 0; }
+  .hint.warn { color: var(--guess); }
+  code { background: #eef1f5; padding: 1px 5px; border-radius: 4px; font-size: 12.5px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Sherbish transliterator</h1>
+  <p id="tagline">Type the Latin encoding &mdash; tokens like <code>HHEHLOU</code> &mdash; and see the script. Words split on spaces; <code>'</code> forces a syllable break.</p>
+</header>
+<main>
+  <div class="panel">
+    <div class="modes" id="modes">
+      <button data-mode="latin" class="active">Latin encoding</button>
+      <button data-mode="english">Plain English</button>
+    </div>
+    <label class="field" for="input" id="input-label">Latin encoding</label>
+    <textarea id="input" spellcheck="false"></textarea>
+    <div class="controls">
+      <button id="download" class="primary">Download SVG</button>
+      <div class="group"><label for="size">size</label><input id="size" type="range" min="28" max="90" value="54" /></div>
+      <div class="group"><label><input id="guides" type="checkbox" /> show grid</label></div>
+      <div class="group"><label><input id="ipa" type="checkbox" checked /> show IPA</label></div>
+    </div>
+    <div class="examples" id="examples"></div>
+  </div>
+
+  <div class="panel">
+    <label class="field">Script</label>
+    <div id="output"></div>
+    <p class="hint" id="parse-hint"></p>
+    <div class="tokens-out" id="tokens-panel" hidden><span class="lbl">Phoneme tokens (the Latin encoding for this text)</span><span id="tokens"></span></div>
+  </div>
+
+  <div class="panel">
+    <label class="field">How it parsed (word &rarr; syllables &rarr; tokens)</label>
+    <div id="breakdown"></div>
+  </div>
+
+  <h2 class="section">Glyph reference</h2>
+  <div class="panel chart" id="chart"></div>
+</main>
+
+<script src="glyphs.js"></script>
+<script src="transliterate.js"></script>
+<script src="render.js"></script>
+<script src="arpabet.js"></script>
+<script src="dictionary.js"></script>
+<script src="english.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
