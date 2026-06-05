@@ -217,9 +217,49 @@
     update();
   });
 
+  // The rendered SVG only carries class names; the visible styling (stroked
+  // glyphs, filled dots, IPA text) lives in the page stylesheet. A downloaded
+  // file has no access to that CSS, so bake an equivalent <style> block — with
+  // the CSS custom properties resolved to concrete values — into the SVG so it
+  // renders standalone exactly like the preview.
+  function standaloneSvg(svg) {
+    var cs = getComputedStyle(document.documentElement);
+    function v(name, fallback) {
+      var x = cs.getPropertyValue(name).trim();
+      return x || fallback;
+    }
+    var ink = v('--ink', '#15171a');
+    var muted = v('--muted', '#6b7280');
+    var err = v('--err', '#b02525');
+    var line = v('--line', '#e6e9ee');
+    // Stroke scales with the artwork here (no non-scaling-stroke) so the file
+    // stays faithful at any size, rather than rendering a hairline when zoomed.
+    var style = '<style>' +
+      '.sherb path,.sherb line,.sherb circle,.sherb ellipse,.sherb polygon,.sherb polyline{' +
+        'fill:none;stroke:' + ink + ';stroke-width:6;stroke-linecap:round;stroke-linejoin:round;}' +
+      '.sherb .fill{fill:' + ink + ';stroke:none;}' +
+      '.sherb .guide-cell{fill:none;stroke:#eef1f5;stroke-width:1.5;}' +
+      '.sherb .guide-block{fill:rgba(59,111,255,.05);stroke:#cddcff;stroke-width:2;}' +
+      '.sherb .err-box{fill:rgba(176,37,37,.07);stroke:' + err + ';stroke-width:3;stroke-dasharray:9 6;}' +
+      '.sherb .err-text{fill:' + err + ';stroke:none;font:700 26px ui-monospace,monospace;text-anchor:middle;dominant-baseline:middle;}' +
+      '.sherb .ipa{fill:' + muted + ';stroke:none;font:400 30px "Segoe UI","Charis SIL","Doulos SIL","Gentium Plus",system-ui,sans-serif;}' +
+      '.sherb.tile .tile-box{fill:none;stroke:' + line + ';stroke-width:2;}' +
+      '</style>';
+    // Give the file an intrinsic size (from the viewBox) and inject the style.
+    return svg.replace(/<svg\b([^>]*)>/, function (m, attrs) {
+      var vb = /viewBox="([^"]*)"/.exec(attrs);
+      var sized = attrs;
+      if (vb && !/\bwidth=/.test(attrs)) {
+        var p = vb[1].split(/\s+/);
+        sized += ' width="' + p[2] + '" height="' + p[3] + '"';
+      }
+      return '<svg' + sized + '>' + style;
+    });
+  }
+
   downloadEl.addEventListener('click', function () {
     if (!lastSvg) return;
-    var blob = new Blob([lastSvg], { type: 'image/svg+xml' });
+    var blob = new Blob([standaloneSvg(lastSvg)], { type: 'image/svg+xml' });
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     a.href = url; a.download = 'sherbish.svg';
