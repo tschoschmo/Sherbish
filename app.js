@@ -6,6 +6,7 @@
   var chartEl = document.getElementById('chart');
   var guidesEl = document.getElementById('guides');
   var sizeEl = document.getElementById('size');
+  var wrapEl = document.getElementById('wrap');
   var hintEl = document.getElementById('parse-hint');
   var downloadEl = document.getElementById('download');
   var examplesEl = document.getElementById('examples');
@@ -122,7 +123,7 @@
   }
 
   function draw(items) {
-    var res = window.renderDocument(items, { guides: guidesEl.checked, ipa: ipaEl.checked, maxWidth: 1500 });
+    var res = window.renderDocument(items, { guides: guidesEl.checked, ipa: ipaEl.checked, maxWidth: parseFloat(wrapEl.value) });
     outEl.innerHTML = res.svg;
     lastSvg = res.svg;
     applySize();
@@ -264,6 +265,7 @@
   guidesEl.addEventListener('change', update);
   ipaEl.addEventListener('change', update);
   sizeEl.addEventListener('input', applySize);
+  wrapEl.addEventListener('input', update);
 
   inputEl.value = cfg().defaultText;
   window.glyphsReady.then(function () {
