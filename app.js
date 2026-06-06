@@ -6,6 +6,7 @@
   var chartEl = document.getElementById('chart');
   var guidesEl = document.getElementById('guides');
   var sizeEl = document.getElementById('size');
+  var wrapEl = document.getElementById('wrap');
   var hintEl = document.getElementById('parse-hint');
   var downloadEl = document.getElementById('download');
   var examplesEl = document.getElementById('examples');
@@ -18,6 +19,14 @@
   var accentEl = document.getElementById('accent');
   var accentGroupEl = document.getElementById('accent-group');
   var chartHeadingEl = document.getElementById('chart-heading');
+
+  // Style the on-page `.sherb` SVGs from the shared rules (non-scaling stroke
+  // keeps a constant on-screen weight regardless of the zoom control).
+  (function injectSherbStyle() {
+    var el = document.createElement('style');
+    el.textContent = window.sherbCss();
+    document.head.appendChild(el);
+  })();
 
   var mode = 'english';    // 'latin' | 'english'
   var accentId = 'genam';  // 'genam' | 'rp'
@@ -114,7 +123,7 @@
   }
 
   function draw(items) {
-    var res = window.renderDocument(items, { guides: guidesEl.checked, ipa: ipaEl.checked, maxWidth: 1500 });
+    var res = window.renderDocument(items, { guides: guidesEl.checked, ipa: ipaEl.checked, maxWidth: parseFloat(wrapEl.value) });
     outEl.innerHTML = res.svg;
     lastSvg = res.svg;
     applySize();
@@ -217,9 +226,28 @@
     update();
   });
 
+  // The rendered SVG only carries class names; the visible styling (stroked
+  // glyphs, filled dots, IPA text) comes from the shared sherb-style.js rules.
+  // A downloaded file has no access to those, so bake them into the SVG as a
+  // <style> element (stroke scaling with the art, so it stays faithful at any
+  // size) so it renders standalone exactly like the preview.
+  function standaloneSvg(svg) {
+    var style = '<style>' + window.sherbCss({ scalingStroke: true }) + '</style>';
+    // Give the file an intrinsic size (from the viewBox) and inject the style.
+    return svg.replace(/<svg\b([^>]*)>/, function (m, attrs) {
+      var vb = /viewBox="([^"]*)"/.exec(attrs);
+      var sized = attrs;
+      if (vb && !/\bwidth=/.test(attrs)) {
+        var p = vb[1].split(/\s+/);
+        sized += ' width="' + p[2] + '" height="' + p[3] + '"';
+      }
+      return '<svg' + sized + '>' + style;
+    });
+  }
+
   downloadEl.addEventListener('click', function () {
     if (!lastSvg) return;
-    var blob = new Blob([lastSvg], { type: 'image/svg+xml' });
+    var blob = new Blob([standaloneSvg(lastSvg)], { type: 'image/svg+xml' });
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     a.href = url; a.download = 'sherbish.svg';
@@ -237,6 +265,7 @@
   guidesEl.addEventListener('change', update);
   ipaEl.addEventListener('change', update);
   sizeEl.addEventListener('input', applySize);
+  wrapEl.addEventListener('input', update);
 
   inputEl.value = cfg().defaultText;
   window.glyphsReady.then(function () {
